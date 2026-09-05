@@ -1,0 +1,136 @@
+Solara Advanced Fruit Tracker (Type, Distance & ESP Highlight)
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local localPlayer = Players.LocalPlayer
+
+-- 1. EKRAN YAZISINI (UI) OLUŞTURMA
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AdvancedFruitTrackerGui"
+screenGui.Parent = CoreGui or localPlayer:WaitForChild("PlayerGui")
+
+local textLabel = Instance.new("TextLabel")
+textLabel.Name = "FruitText"
+textLabel.Size = UDim2.new(0.5, 0, 0, 45)
+textLabel.Position = UDim2.new(0.5, 0, 0, 30)
+textLabel.AnchorPoint = Vector2.new(0.5, 0)
+textLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+textLabel.BackgroundTransparency = 0.25
+textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+textLabel.Font = Enum.Font.SourceSansBold
+textLabel.TextSize = 22
+textLabel.Visible = false
+textLabel.Parent = screenGui
+
+local uicorner = Instance.new("UICorner")
+uicorner.CornerRadius = UDim.new(0, 8)
+uicorner.Parent = textLabel
+
+-- 2. MEYVE TÜRLERİNİ BELİRLEME LİSTESİ
+local fruitTypes = {
+    ["falcon"] = "Beast", ["buddha"] = "Beast", ["phoenix"] = "Beast", ["mammoth"] = "Beast", 
+    ["t-rex"] = "Beast", ["tiger"] = "Beast", ["yeti"] = "Beast", ["dragon"] = "Beast", 
+    ["leopard"] = "Beast", ["kitsune"] = "Beast", ["eagle"] = "Beast",
+    ["smoke"] = "Elemental", ["flame"] = "Elemental", ["ice"] = "Elemental", 
+    ["sand"] = "Elemental", ["dark"] = "Elemental", ["light"] = "Elemental", 
+    ["magma"] = "Elemental", ["rumble"] = "Elemental", ["blizzard"] = "Elemental",
+    ["lightning"] = "Elemental", ["gas"] = "Elemental",
+    ["rocket"] = "Natural", ["spin"] = "Natural", ["chop"] = "Natural", 
+    ["spring"] = "Natural", ["bomb"] = "Natural", ["spike"] = "Natural", 
+    ["diamond"] = "Natural", ["rubber"] = "Natural", ["barrier"] = "Natural", 
+    ["ghost"] = "Natural", ["quake"] = "Natural", ["love"] = "Natural", 
+    ["spider"] = "Natural", ["sound"] = "Natural", ["portal"] = "Natural", 
+    ["pain"] = "Natural", ["gravity"] = "Natural", ["dough"] = "Elemental", 
+    ["shadow"] = "Natural", ["venom"] = "Natural", ["control"] = "Natural", 
+    ["spirit"] = "Natural", ["creation"] = "Natural", ["blade"] = "Natural"
+}
+
+local function getFruitType(fruitName)
+    local cleanedName = string.lower(fruitName):gsub(" fruit", ""):gsub(" ", "")
+    return fruitTypes[cleanedName] or "Bilinmeyen Tür"
+end
+
+-- 3. PARLAMA EFEKTİ (HIGHLIGHT ESP) YÖNETİMİ
+local currentHighlight = nil
+
+local function applyHighlight(object)
+    -- Eğer zaten bu nesneye efekt eklenmişse tekrar ekleme
+    if object:FindFirstChild("FruitESP") then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FruitESP"
+    highlight.FillColor = Color3.fromRGB(255, 255, 0) -- İç dolgu rengi (SARI)
+    highlight.FillTransparency = 0.5 -- İç dolgu şeffaflığı (Hafif saydam parlasın)
+    highlight.OutlineColor = Color3.fromRGB(255, 215, 0) -- Dış çizgi rengi (ALTIN SARISI)
+    highlight.OutlineTransparency = 0 -- Çizgi net görünsün
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- DUVAR ARKASINDAN GÖSTERME AYARI
+    highlight.Parent = object
+    currentHighlight = highlight
+end
+
+local function removeHighlight()
+    if currentHighlight and currentHighlight.Parent then
+        currentHighlight:Destroy()
+    end
+    currentHighlight = nil
+end
+
+-- 4. MEYVEYİ BULMA VE MESAFE HESAPLAMA
+local function getClosestFruit()
+    local character = localPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil, nil end
+    
+    local playerPos = character.HumanoidRootPart.Position
+    local closestFruit = nil
+    local shortestDistance = math.huge
+
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Tool") and string.match(string.lower(obj.Name), "fruit") then
+            local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
+            if handle then
+                local distance = (playerPos - handle.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestFruit = obj
+                end
+            end
+        end
+    end
+    
+    return closestFruit, shortestDistance
+end
+
+-- 5. CANLI DÖNGÜ (0.5 saniyede bir günceller)
+task.spawn(function()
+    while true do
+        local fruit, distance = getClosestFruit()
+        
+        if fruit and distance then
+            local typeText = getFruitType(fruit.Name)
+            textLabel.Text = "🍎 " .. fruit.Name .. " (" .. typeText .. ") " .. math.round(distance) .. " studs yakınında!"
+            textLabel.Visible = true
+            
+            -- Türlerine göre yazı rengini ayarlama
+            if typeText == "Beast" then
+                textLabel.TextColor3 = Color3.fromRGB(255, 85, 85)
+            elseif typeText == "Elemental" then
+                textLabel.TextColor3 = Color3.fromRGB(85, 255, 255)
+            else
+                textLabel.TextColor3 = Color3.fromRGB(255, 255, 127)
+            end
+            
+            -- SARI IŞIK (ESP) KONTROLÜ: 1000 studs altındaysa aktifleştir
+            if distance <= 1000 then
+                applyHighlight(fruit)
+            else
+                removeHighlight() -- Çok uzaktaysa parlamayı kaldır
+            end
+        else
+            textLabel.Visible = false
+            removeHighlight() -- Haritada meyve kalmadıysa parlamayı kaldır
+        end
+        
+        task.wait(0.5)
+    end
+end)
